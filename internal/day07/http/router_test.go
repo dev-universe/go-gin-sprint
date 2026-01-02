@@ -8,6 +8,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type greeting struct {
+	Name     string `json:"name"`
+	Greeting string `json:"greeting"`
+}
+
+type errorResp struct {
+	Error  string `json:"error"`
+	Detail string `json:"detail,omitempty"`
+}
+
 func setupRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
