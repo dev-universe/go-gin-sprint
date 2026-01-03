@@ -1,8 +1,10 @@
 package http
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -55,9 +57,13 @@ func TestGreet_NoNames(t *testing.T) {
 		t.Fatalf("expected %d, got %d", http.StatusBadRequest, w.Code)
 	}
 
-	expected := `{"error":"no valid names"}`
-	if w.Body.String() != expected {
-		t.Fatalf("expected body %q, got %q", expected, w.Body.String())
+	var got errorResp
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to unmarshal: %v, body=%q", err, w.Body.String())
+	}
+
+	if got.Error != "no valid names" {
+		t.Fatalf("expected error %q, got %q", "no valid names", got.Error)
 	}
 }
 
@@ -73,8 +79,42 @@ func TestGreet_Success(t *testing.T) {
 		t.Fatalf("expected %d, got %d", http.StatusOK, w.Code)
 	}
 
-	expected := `[{"name":"Alice","greeting":"Hello Alice!"},{"name":"Bob","greeting":"Hello Bob!"}]`
-	if w.Body.String() != expected {
-		t.Fatalf("expected body %q, got %q", expected, w.Body.String())
+	var got []greeting
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to unmarshal: %v, body=%q", err, w.Body.String())
+	}
+
+	want := []greeting{
+		{Name: "Alice", Greeting: "Hello Alice!"},
+		{Name: "Bob", Greeting: "Hello Bob!"},
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %#v, got %#v", want, got)
+	}
+
+}
+
+func TestGreet_NameTooLong(t *testing.T) {
+	r := setupRouter()
+
+	req := httptest.NewRequest(http.MethodGet, "/greet?name=this-name-is-way-too-long-for-the-rule", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected %d, got %d", http.StatusUnprocessableEntity, w.Code)
+	}
+
+	var got errorResp
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to unmarshal: %v, body=%q", err, w.Body.String())
+	}
+
+	if got.Error != "name too long" {
+		t.Fatalf("expected error %q, got %q", "name too long", got.Error)
+	}
+	if got.Detail == "" {
+		t.Fatalf("expected detail to be non-empty")
 	}
 }
